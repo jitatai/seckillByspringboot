@@ -4,6 +4,9 @@ import com.hnit.seckill.domain.Goods;
 import com.hnit.seckill.domain.MiaoShaUser;
 import com.hnit.seckill.domain.MiaoshaOrder;
 import com.hnit.seckill.domain.OrderInfo;
+import com.hnit.seckill.redis.MiaoShaKey;
+import com.hnit.seckill.redis.OrderKey;
+import com.hnit.seckill.redis.RedisService;
 import com.hnit.seckill.vo.GoodsVo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -16,8 +19,35 @@ public class MiaoShaService {
     GoodsService goodsService;
     @Autowired
     OrderService orderService;
+    @Autowired
+    RedisService redisService;
+
+    public long getSeckillResult(Long userId, long goodsId) {
+        MiaoshaOrder order = getMiaoShaOrderByUserIdAndGoodsId(userId, goodsId);
+        if (order != null){
+            return order.getOrderId();
+        }else{
+            boolean isOver = getGoodsOver(goodsId);
+            if(isOver) {
+                setGoodsOver(goodsId);
+                return -1;
+            }else {
+                return 0;
+            }
+        }
+    }
+
     public MiaoshaOrder getMiaoShaOrderByUserIdAndGoodsId(Long id, Long goodsId) {
-        return orderService.getMiaoShaOrderByUserIdAndGoodsId(id,goodsId);
+        return redisService.get(OrderKey.getOrderByUidAndGid,""+id +"_" + goodsId,MiaoshaOrder.class);
+//        return orderService.getMiaoShaOrderByUserIdAndGoodsId(id,goodsId);
+    }
+
+    private void setGoodsOver(Long goodsId) {
+        redisService.set(MiaoShaKey.isGoodsOver, ""+goodsId, true);
+    }
+
+    private boolean getGoodsOver(long goodsId) {
+        return redisService.exists(MiaoShaKey.isGoodsOver, ""+goodsId);
     }
 
     public OrderInfo miaoSha(MiaoShaUser user, GoodsVo goodsVo) {

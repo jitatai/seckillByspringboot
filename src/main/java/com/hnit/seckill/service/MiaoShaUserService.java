@@ -27,7 +27,41 @@ public class MiaoShaUserService {
     public static final String Cookie_Name_TOKEN = "token";
 
     private MiaoShaUser getById(long id){
-        return userDao.getById(id);
+        //对象缓存
+        MiaoShaUser user = redisService.get(MiaoShaUserKey.getById, "" + id, MiaoShaUser.class);
+        if (user != null) {
+            return user;
+        }
+        //取数据库
+        user = userDao.getById(id);
+        //再存入缓存
+        if (user != null) {
+            redisService.set(MiaoShaUserKey.getById, "" + id, user);
+        }else{
+            redisService.set(MiaoShaUserKey.getById.setGetByIdExpire(60), "" + id, "null");
+        }
+        return user;
+    }
+
+    /**
+     * 典型缓存同步场景：更新密码
+     */
+    public boolean updatePassword(String token, long id, String formPass) {
+        //取user
+        MiaoShaUser user = getById(id);
+        if(user == null) {
+            throw new GlobalException(CodeMsg.MOBILE_NOT_EXIST);
+        }
+        //更新数据库
+        MiaoShaUser toBeUpdate = new MiaoShaUser();
+        toBeUpdate.setId(id);
+        toBeUpdate.setPassword(MD5Util.fromPass2DBPass(formPass, user.getSalt()));
+        userDao.update(toBeUpdate);
+        //更新缓存：先删除再插入
+        redisService.delete(MiaoShaUserKey.getById, ""+id);
+        user.setPassword(toBeUpdate.getPassword());
+        redisService.set(MiaoShaUserKey.token, token, user);
+        return true;
     }
 
     public CodeMsg login(HttpServletResponse response,LoginVo loginVo) {
@@ -40,8 +74,8 @@ public class MiaoShaUserService {
         }
         String password = user.getPassword();
         String salt = user.getSalt();
-        String calepass = MD5Util.fromPass2DBPass(loginVo.getPassword(), salt);
-        if(!calepass.equals(password)){
+        String calcPass = MD5Util.fromPass2DBPass(loginVo.getPassword(), salt);
+        if(!calcPass.equals(password)){
             return CodeMsg.PASSWORD_ERROR;
         }
         //添加cookie
@@ -64,6 +98,7 @@ public class MiaoShaUserService {
             return null;
         }
         MiaoShaUser user = redisService.get(MiaoShaUserKey.token, token, MiaoShaUser.class);
+        System.out.println(user);
         //添加cookie
         addCookie(response, user,token);
         return user;

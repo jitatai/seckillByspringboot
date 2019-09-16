@@ -36,7 +36,7 @@
         <td colspan="3"><img th:src="@{${goods.goodsImg}}" width="200" height="200" /></td>  
      </tr>
      <tr>  
-        <td>秒杀开始时间</td>  
+        <td>秒杀开始时间</td>
         <td th:text="${#dates.format(goods.startDate, 'yyyy-MM-dd HH:mm:ss')}"></td>
         <td id="miaoshaTip">	
         	<input type="hidden" id="remainSeconds" th:value="${goodsDetail.remainSeconds}" />

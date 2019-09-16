@@ -2,6 +2,8 @@ package com.hnit.seckill.service;
 
 import com.hnit.seckill.dao.OrderDao;
 import com.hnit.seckill.domain.*;
+import com.hnit.seckill.redis.OrderKey;
+import com.hnit.seckill.redis.RedisService;
 import com.hnit.seckill.vo.GoodsVo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -12,8 +14,10 @@ import java.util.Date;
 
 @Service
 public class OrderService {
-    @Autowired
+    @Resource
     OrderDao orderDao;
+    @Autowired
+    RedisService redisService;
     /**
      * 因为要同时分别在订单详情表和秒杀订单表都新增一条数据，所以要保证两个操作是一个事物
      */
@@ -36,10 +40,16 @@ public class OrderService {
         seckillOrder.setOrderId(orderInfo.getId());
         seckillOrder.setUserId(user.getId());
         orderDao.insertSeckillOrder(seckillOrder);
+
+        redisService.set(OrderKey.getOrderByUidAndGid,""+user.getId() +"_" + goods.getId(),seckillOrder);
         return orderInfo;
     }
 
     public MiaoshaOrder getMiaoShaOrderByUserIdAndGoodsId(Long id, Long goodsId) {
         return orderDao.getOrderByUserIdGoodsId(id,goodsId);
+    }
+
+    public OrderInfo getOrderById(long orderId) {
+        return orderDao.getOrderById(orderId);
     }
 }
