@@ -1,5 +1,6 @@
 package com.hnit.seckill.controller;
 
+import com.hnit.seckill.access.AceessLimit;
 import com.hnit.seckill.domain.MiaoShaUser;
 import com.hnit.seckill.domain.MiaoshaOrder;
 import com.hnit.seckill.domain.OrderInfo;
@@ -47,12 +48,19 @@ public class SecKillController implements InitializingBean {
     @Autowired
     private MQSender mqSender;
 
-    //做标记，判断该商品是否被处理过了
+    /**
+     * 做标记，判断该商品是否被处理过了
+     */
     private Map<Long, Boolean> localOverMap = new HashMap<Long, Boolean>();
 
-
-    @RequestMapping("/do_miaosha")
-    public String doMiaosha(MiaoShaUser user,Model model,Long goodsId){
+    /**
+     *
+     * @param user  登陆用户
+     * @param model  保存
+     * @param goodsId
+     * @return
+     */
+    public String doMiaoha(MiaoShaUser user,Model model,Long goodsId){
         if (user == null || user.getId() == null){
             return "login";
         }
@@ -77,25 +85,26 @@ public class SecKillController implements InitializingBean {
 
     @RequestMapping(value = "/getPath",method = RequestMethod.GET)
     @ResponseBody
+    @AceessLimit(seconds=5,maxCount=5,needLogin=true)
     public Result<String> getPath(MiaoShaUser user, Model model, Long goodsId,
                                   @RequestParam(value = "verifyCode",defaultValue = "0")Integer verifyCode, HttpServletRequest request){
         if (user == null || user.getId() == null){
             return Result.error(CodeMsg.SESSION_ERROR);
         }
 
-        String uri = request.getRequestURI();
-        String key = uri + "_" + user.getId();
-        Integer count = redisService.get(AccessKey.access, key, Integer.class);
-        if(count == null){
-            redisService.set(AccessKey.access,key,1);
-        }else if (count < 5){
-            redisService.incr(AccessKey.access,key);
-        }else {
-            return Result.error(CodeMsg.REQUEST_LIMIT_REACHED);
-        }
+//        String uri = request.getRequestURI();
+//        String key = uri + "_" + user.getId();
+//        Integer count = redisService.get(AccessKey.access, key, Integer.class);
+//        if(count == null){
+//            redisService.set(AccessKey.access,key,1);
+//        }else if (count < 5){
+//            redisService.incr(AccessKey.access,key);
+//        }else {
+//            return Result.error(CodeMsg.REQUEST_LIMIT_REACHED);
+//        }
         boolean check = miaoShaService.checkVerifyCode(user,goodsId,verifyCode);
         if (!check){
-            return Result.error(CodeMsg.REQUEST_ILLEGAL);
+            return Result.error(CodeMsg.CODE_ERROR);
         }
         String str = createCheckPath(user, goodsId);
         return Result.success(str);

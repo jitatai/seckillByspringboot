@@ -12,4 +12,8 @@ public class AccessKey extends BasePrefix {
     }
 
     public static AccessKey access = new AccessKey(5,"access");
+
+    public static AccessKey withExpire(int expireSeconeds){
+        return new AccessKey(expireSeconeds,"access");
+    }
 }
