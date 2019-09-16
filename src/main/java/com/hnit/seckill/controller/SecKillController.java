@@ -5,6 +5,7 @@ import com.hnit.seckill.domain.MiaoshaOrder;
 import com.hnit.seckill.domain.OrderInfo;
 import com.hnit.seckill.rabbitmq.MQSender;
 import com.hnit.seckill.rabbitmq.SeckillMessage;
+import com.hnit.seckill.redis.AccessKey;
 import com.hnit.seckill.redis.MiaoShaKey;
 import com.hnit.seckill.redis.RedisService;
 import com.hnit.seckill.result.CodeMsg;
@@ -12,6 +13,8 @@ import com.hnit.seckill.result.Result;
 import com.hnit.seckill.service.GoodsService;
 import com.hnit.seckill.service.MiaoShaService;
 import com.hnit.seckill.service.OrderService;
+import com.hnit.seckill.util.MD5Util;
+import com.hnit.seckill.util.UUIDUtil;
 import com.hnit.seckill.vo.GoodsVo;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +23,11 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
+import javax.imageio.ImageIO;
+import javax.servlet.ServletOutputStream;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.awt.image.BufferedImage;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,7 +56,6 @@ public class SecKillController implements InitializingBean {
         if (user == null || user.getId() == null){
             return "login";
         }
-        System.out.println("miaosha");
         model.addAttribute("user",user);
         GoodsVo goodsVo = goodsService.getGoodsVoByGoodsId(goodsId);
         if (goodsVo.getStockCount() <= 0){
@@ -68,13 +75,61 @@ public class SecKillController implements InitializingBean {
         return "order_detail";
     }
 
-    @RequestMapping(value = "/do_seckill",method = RequestMethod.POST)
+    @RequestMapping(value = "/getPath",method = RequestMethod.GET)
     @ResponseBody
-    public Result<Integer> doSeckill(MiaoShaUser user, Model model, Long goodsId){
+    public Result<String> getPath(MiaoShaUser user, Model model, Long goodsId,
+                                  @RequestParam(value = "verifyCode",defaultValue = "0")Integer verifyCode, HttpServletRequest request){
         if (user == null || user.getId() == null){
             return Result.error(CodeMsg.SESSION_ERROR);
         }
-        model.addAttribute("user",user);
+
+        String uri = request.getRequestURI();
+        String key = uri + "_" + user.getId();
+        Integer count = redisService.get(AccessKey.access, key, Integer.class);
+        if(count == null){
+            redisService.set(AccessKey.access,key,1);
+        }else if (count < 5){
+            redisService.incr(AccessKey.access,key);
+        }else {
+            return Result.error(CodeMsg.REQUEST_LIMIT_REACHED);
+        }
+        boolean check = miaoShaService.checkVerifyCode(user,goodsId,verifyCode);
+        if (!check){
+            return Result.error(CodeMsg.REQUEST_ILLEGAL);
+        }
+        String str = createCheckPath(user, goodsId);
+        return Result.success(str);
+    }
+
+    private String createCheckPath(MiaoShaUser user, Long goodsId) {
+        String str = MD5Util.md5(UUIDUtil.uuid() + "123456");
+        redisService.set(MiaoShaKey.getMiaoShaPath,""+user.getId()+"_"+goodsId,str);
+        return str;
+    }
+
+    /**
+     * GET POST
+     * 1、GET幂等,服务端获取数据，无论调用多少次结果都一样
+     * 2、POST，向服务端提交数据，不是幂等
+     * <p>
+     * 将同步下单改为异步下单
+     *
+     * @param model
+     * @param user
+     * @param goodsId
+     * @return
+     */
+    @RequestMapping(value = "/do_seckill/{path}",method = RequestMethod.POST)
+    @ResponseBody
+    public Result<Integer> doSeckill(MiaoShaUser user, Model model,@PathVariable("path")String path, Long goodsId){
+        if (user == null || user.getId() == null){
+            return Result.error(CodeMsg.SESSION_ERROR);
+        }
+        boolean check = checkMiaoShaPath(user, path, goodsId);
+
+        if (!check){
+            return Result.error(CodeMsg.REQUEST_ILLEGAL);
+        }
 
         //内存标记 减少redis访问
         Boolean isOver = localOverMap.get(goodsId);
@@ -113,6 +168,14 @@ public class SecKillController implements InitializingBean {
         return Result.success(orderInfo);*/
     }
 
+    private boolean checkMiaoShaPath(MiaoShaUser user,String path, Long goodsId) {
+        if (path == null || goodsId == null){
+            return false;
+        }
+        String oldPath = redisService.get(MiaoShaKey.getMiaoShaPath, "" + user.getId() + "_" + goodsId, String.class);
+        return path.equals(oldPath);
+    }
+
 
     @Override
     public void afterPropertiesSet() throws Exception {
@@ -144,4 +207,25 @@ public class SecKillController implements InitializingBean {
         long orderId = miaoShaService.getSeckillResult(user.getId(), goodsId);
         return Result.success(orderId);
     }
+
+    @RequestMapping(value = "/verifyCode", method = RequestMethod.GET)
+    @ResponseBody
+    public Result<Long> verifyCode(MiaoShaUser user, @RequestParam("goodsId") long goodsId, HttpServletResponse response) {
+        if (user == null) {
+            return Result.error(CodeMsg.SESSION_ERROR);
+        }
+        BufferedImage image = miaoShaService.createVerifyCode(user,goodsId);
+        try {
+            ServletOutputStream out = response.getOutputStream();
+            ImageIO.write(image,"JPEG",out);
+            out.flush();
+            out.close();
+            return null;
+        }catch (Exception e){
+            e.printStackTrace();
+            return Result.error(CodeMsg.MIAOSHA_FAIL);
+        }
+
+    }
+
 }

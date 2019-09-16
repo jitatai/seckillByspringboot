@@ -98,7 +98,7 @@ public class MiaoShaUserService {
             return null;
         }
         MiaoShaUser user = redisService.get(MiaoShaUserKey.token, token, MiaoShaUser.class);
-        System.out.println(user);
+//        System.out.println(user);
         //添加cookie
         addCookie(response, user,token);
         return user;
