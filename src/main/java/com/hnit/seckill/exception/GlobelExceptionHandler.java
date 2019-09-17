@@ -22,7 +22,10 @@ public class GlobelExceptionHandler {
             List<ObjectError> errors = ex.getAllErrors();
             ObjectError error = errors.get(0);
             return Result.error(CodeMsg.BIND_ERROR.fillArgs(error.getDefaultMessage()));
-        }else {
+        }else if (e instanceof GlobalException){
+            GlobalException ex = (GlobalException) e;
+          return Result.error(ex.getCm());
+        } else {
             return Result.error(CodeMsg.SERVER_ERROR);
         }
     }

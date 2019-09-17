@@ -30,10 +30,10 @@ public class AccessInterceptor extends HandlerInterceptorAdapter {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-
+        MiaoShaUser user = getUser(request, response);
+        UserContext.setUser(user);
         if (handler instanceof HandlerMethod){
-            MiaoShaUser user = getUser(request, response);
-            UserContext.setUser(user);
+
             HandlerMethod mh = (HandlerMethod) handler;
             AceessLimit accessLimit = mh.getMethodAnnotation(AceessLimit.class);
             if (accessLimit == null){

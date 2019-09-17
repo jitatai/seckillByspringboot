@@ -11,6 +11,15 @@ public class GoodsVo extends Goods {
     private Integer stockCount;
     private Date startDate;
     private Date endDate;
+    private int version;
+
+    public int getVersion() {
+        return version;
+    }
+
+    public void setVersion(int version) {
+        this.version = version;
+    }
 
     public Double getMiaoshaPrice() {
         return miaoshaPrice;

@@ -60,7 +60,7 @@ public class SecKillController implements InitializingBean {
      * @param goodsId
      * @return
      */
-    public String doMiaoha(MiaoShaUser user,Model model,Long goodsId){
+    public String doMiaosha(MiaoShaUser user,Model model,Long goodsId){
         if (user == null || user.getId() == null){
             return "login";
         }

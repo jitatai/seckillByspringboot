@@ -48,6 +48,14 @@ public class GoodsService {
     }
 
     public boolean reduceStock(GoodsVo goodsVo) {
-        return goodsDao.reduceStock(goodsVo.getId()) == 1;
+        if (goodsVo == null){
+            return false;
+        }
+        int leastVersion = goodsDao.getVersionByGoodsId(goodsVo.getId());
+        if (leastVersion != goodsVo.getVersion()){
+            return false;
+        }
+        int ret = goodsDao.reduceStock(goodsVo.getId());
+        return ret > 0;
     }
 }
